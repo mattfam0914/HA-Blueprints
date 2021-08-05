@@ -55,7 +55,7 @@ blueprint:
       selector:
         number:
           min: 5
-          max: 1440
+          max: 240
           unit_of_measurement: minutes
 
     logbook_message_remind:
@@ -65,8 +65,8 @@ blueprint:
 
     logbook_message_taken:
       name: Logbook message for action Taken
-      description: "Default: Medication taken"
-      default: "Medication taken"
+      description: "Default: Medstaken"
+      default: "Meds taken"
 
     logbook_message_later:
       name: Logbook message for action Ask later
@@ -80,8 +80,8 @@ blueprint:
 
     logbook_message_no_answer:
       name: Logbook message for no action after timeout
-      description: "Default: No answer time out"
-      default: "No answer time out"
+      description: "Default: No answer - dismissed/swiped away notification"
+      default: "No answer - dismissed/swiped away notification"
 
     optional_action:
       name: Optional action
@@ -100,7 +100,7 @@ action:
   - service: input_boolean.turn_off
     target:
       entity_id: !input input_boolean
-  - alias: "Notify until the medication has been take"
+  - alias: "Notify until the meds has been taken"
     repeat:
       while:
         - condition: state
