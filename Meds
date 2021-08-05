@@ -1,0 +1,178 @@
+blueprint:
+  name: Reminder to take meds
+  description: more info here
+  domain: automation
+  input:
+    reminder_time:
+      name: Reminder time
+      description: input time
+      selector:
+        time: {}
+
+    notify_device:
+      name: Notification
+      description: more info
+      selector:
+        device:
+          integration: mobile_app
+
+    input_boolean:
+      name: Dedicated input_boolean
+      description: select input_boolean
+      selector:
+        entity:
+          domain: input_boolean
+
+    notification_title:
+      name: Notification title (Optional)
+      description: "Take your meds"
+      default: "Med reminder!"
+
+    notification_message:
+      name: Notification message (Optional)
+      description: "Default: It's time to take your medication"
+      default: "It's time to take your medication"
+
+    notification_action_taken:
+      name: "Notification action: Taken (Optional)"
+      description: "Default: Taken"
+      default: "Taken"
+
+    notification_action_later:
+      name: "Notification action: Ask later (Optional)"
+      description: "Default: Ask later"
+      default: "Ask later"
+
+    notification_action_skip:
+      name: "Notification action: Skip (Optional)"
+      description: "Default: Skip"
+      default: "Skip"
+
+    ask_later_wait_time:
+      name: Wait time before next reminder
+      description: Minutes before notify again after a Ask later action.
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 1440
+          unit_of_measurement: minutes
+
+    logbook_message_remind:
+      name: Logbook message for remind
+      description: "Default: Reminder sent"
+      default: "Reminder sent"
+
+    logbook_message_taken:
+      name: Logbook message for action Taken
+      description: "Default: Medication taken"
+      default: "Medication taken"
+
+    logbook_message_later:
+      name: Logbook message for action Ask later
+      description: "Default: Postpone reminder"
+      default: "Postpone reminder"
+
+    logbook_message_skip:
+      name: Logbook message for action Skip
+      description: "Default: Reminder skipped"
+      default: "Reminder skipped"
+
+    logbook_message_no_answer:
+      name: Logbook message for no action after timeout
+      description: "Default: No answer time out"
+      default: "No answer time out"
+
+    optional_action:
+      name: Optional action
+      description: more info
+      selector:
+        action: {}
+      default: []
+
+trigger:
+  - platform: time
+    at: !input reminder_time
+
+mode: restart
+
+action:
+  - service: input_boolean.turn_off
+    target:
+      entity_id: !input input_boolean
+  - alias: "Notify until the medication has been take"
+    repeat:
+      while:
+        - condition: state
+          entity_id: !input input_boolean
+          state: "off"
+      sequence:
+        - service: logbook.log
+          data:
+            name: !input notification_title
+            message: !input logbook_message_remind
+            entity_id: !input input_boolean
+        - choose:
+            - conditions: "{{ true }}"
+              sequence: !input optional_action
+        - device_id: !input notify_device
+          domain: mobile_app
+          type: notify
+          title: !input notification_title
+          message: !input notification_message
+          data:
+            actions:
+              - title: !input notification_action_taken
+                action: "taken"
+              - title: !input notification_action_later
+                action: "later"
+              - title: !input notification_action_skip
+                action: "skip"
+            tag: "medication-reminder"
+        - wait_for_trigger:
+            platform: event
+            event_type: mobile_app_notification_action
+          timeout:
+            minutes: !input ask_later_wait_time
+        - choose:
+            - conditions: "{{ wait.trigger.event.data.action == 'taken' }}"
+              sequence:
+                - service: input_boolean.turn_on
+                  target:
+                    entity_id: !input input_boolean
+                - service: logbook.log
+                  data:
+                    name: !input notification_title
+                    message: !input logbook_message_taken
+                    entity_id: !input input_boolean
+            - conditions: "{{ wait.trigger.event.data.action == 'later' }}"
+              sequence:
+                - service: logbook.log
+                  data:
+                    name: !input notification_title
+                    message: !input logbook_message_later
+                    entity_id: !input input_boolean
+                - delay:
+                    minutes: !input ask_later_wait_time
+            - conditions: "{{ wait.trigger.event.data.action == 'skip' }}"
+              sequence:
+                - service: input_boolean.turn_on
+                  target:
+                    entity_id: !input input_boolean
+                - service: logbook.log
+                  data:
+                    name: !input notification_title
+                    message: !input logbook_message_skip
+                    entity_id: !input input_boolean
+          default:
+            - device_id: !input notify_device
+              domain: mobile_app
+              type: notify
+              message: "clear_notification"
+              data:
+                tag: "medication-reminder"
+            - service: logbook.log
+              data:
+                name: !input notification_title
+                message: !input logbook_message_no_answer
+                entity_id: !input input_boolean
